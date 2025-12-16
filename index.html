@@ -1,0 +1,176 @@
+<details>
+<summary><strong>📄 index.html (CLICK TO EXPAND)</strong></summary>
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>30-Min Calisthenics</title>
+
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0f172a">
+
+<style>
+body {
+  font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+  background: #0f172a;
+  color: white;
+  padding: 20px;
+}
+h1, h2 { text-align: center; }
+button {
+  width: 100%;
+  padding: 14px;
+  margin: 6px 0;
+  border-radius: 10px;
+  border: none;
+  font-size: 16px;
+}
+.day { background: #3b82f6; }
+.start { background: #22c55e; }
+.stop { background: #ef4444; }
+.card {
+  background: #1e293b;
+  padding: 16px;
+  border-radius: 12px;
+  margin-top: 12px;
+}
+#timer {
+  font-size: 48px;
+  text-align: center;
+}
+#exercise { font-size: 20px; text-align: center; }
+#reps { font-size: 14px; opacity: 0.8; text-align: center; }
+#round { text-align: center; font-weight: bold; }
+</style>
+</head>
+
+<body>
+
+<h1>30-Minute Calisthenics</h1>
+
+<div class="card">
+<button class="day" onclick="loadDay(1)">Day 1 – Push</button>
+<button class="day" onclick="loadDay(2)">Day 2 – Legs</button>
+<button class="day" onclick="loadDay(3)">Day 3 – Pull</button>
+<button class="day" onclick="loadDay(4)">Day 4 – Core</button>
+<button class="day" onclick="loadDay(5)">Day 5 – Full Body</button>
+</div>
+
+<div class="card">
+<h2 id="dayTitle">Select a Day</h2>
+<div id="round"></div>
+<div id="exercise">—</div>
+<div id="reps"></div>
+<div id="timer">00:00</div>
+<button class="start" onclick="startWorkout()">Start</button>
+<button class="stop" onclick="stopWorkout()">Stop</button>
+</div>
+
+<script>
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("sw.js");
+}
+
+const beep = new Audio("data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=");
+let sequence = [];
+let index = 0;
+let round = 1;
+let interval;
+const totalRounds = 3;
+
+function speak(text) {
+  beep.play();
+  setTimeout(() => {
+    speechSynthesis.speak(new SpeechSynthesisUtterance(text));
+  }, 200);
+}
+
+function loadDay(day) {
+  const warmup = [
+    ["Warm-up: Arm circles", "", 30],
+    ["Warm-up: Scap push-ups", "10 reps", 40],
+    ["Warm-up: Squats", "15 reps", 40],
+    ["Rest", "", 30]
+  ];
+
+  const finisher = [
+    ["Finisher: Hollow Hold", "20s on / 10s off", 20],
+    ["Rest", "", 10]
+  ];
+
+  const workouts = {
+    1: ["Push Day", [
+      ["Push-ups", "10–15 reps", 40],
+      ["Rest", "", 30],
+      ["Pike Push-ups", "8–10 reps", 40],
+      ["Rest", "", 30],
+      ["Chair Dips", "10–12 reps", 40],
+      ["Rest", "", 30],
+      ["Tempo Push-ups", "6–8 reps", 40],
+      ["Rest", "", 60],
+    ]],
+    2: ["Leg Day", [
+      ["Squats", "15–20 reps", 45],
+      ["Rest", "", 30],
+      ["Reverse Lunges", "8–10 / leg", 45],
+      ["Rest", "", 30],
+      ["Step-ups", "10 / leg", 45],
+      ["Rest", "", 30],
+      ["Wall Sit", "45 sec", 45],
+      ["Rest", "", 60],
+    ]]
+  };
+
+  document.getElementById("dayTitle").innerText = workouts[day][0];
+  sequence = [...warmup, ...workouts[day][1].flatMap(e => Array(totalRounds).fill(e)).flat(), ...Array(8).fill(finisher).flat()];
+  index = 0;
+  round = 1;
+}
+
+function startWorkout() {
+  speak("Starting warm-up.");
+  run();
+}
+
+function stopWorkout() {
+  clearInterval(interval);
+  speechSynthesis.cancel();
+}
+
+function run() {
+  if (index >= sequence.length) {
+    speak("Workout complete. Excellent work.");
+    return;
+  }
+
+  let [name, reps, duration] = sequence[index];
+  document.getElementById("exercise").innerText = name;
+  document.getElementById("reps").innerText = reps;
+  document.getElementById("round").innerText = name.includes("Warm") ? "Warm-up" : name.includes("Finisher") ? "Finisher" : `Round ${round}`;
+
+  let time = duration;
+  if (!name.includes("Rest")) speak("Three, two, one, go");
+  else speak("Rest");
+
+  document.getElementById("timer").innerText = time;
+
+  interval = setInterval(() => {
+    time--;
+    document.getElementById("timer").innerText = time;
+    if (time === 10 && !name.includes("Rest")) speak("Ten seconds left");
+    if (time <= 0) {
+      clearInterval(interval);
+      index++;
+      setTimeout(run, 400);
+    }
+  }, 1000);
+}
+</script>
+
+</body>
+</html>
+
+</details>
+
