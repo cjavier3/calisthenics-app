@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>30-Minute Calisthenics</title>
+
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#020617">
+
+<style>
+:root{
+ --bg:#020617;--card:rgba(255,255,255,.07);
+ --accent:#3b82f6;--success:#22c55e;--danger:#ef4444;
+ --text:#fff;--muted:#94a3b8;
+}
+body{
+ margin:0;padding:20px;
+ font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display",Inter,system-ui,sans-serif;
+ background:radial-gradient(circle at top,#020617,#01040f);
+ color:var(--text);
+}
+h1,h2{text-align:center;font-weight:600}
+button{
+ width:100%;padding:14px;margin:6px 0;
+ border:none;border-radius:16px;
+ font-size:16px;font-weight:500;color:#fff;
+}
+.day{background:linear-gradient(135deg,#1e3a8a,#2563eb)}
+.start{background:linear-gradient(135deg,#16a34a,#22c55e)}
+.stop{background:linear-gradient(135deg,#dc2626,#ef4444)}
+.secondary{background:#334155}
+select{
+ width:100%;padding:12px;border-radius:12px;
+ background:#020617;color:#fff;border:1px solid #334155;
+}
+.card{
+ background:var(--card);backdrop-filter:blur(16px);
+ border-radius:22px;padding:18px;margin-top:14px;
+ box-shadow:0 10px 30px rgba(0,0,0,.45);
+}
+#timer{font-size:52px;text-align:center;margin:10px 0}
+#exercise{text-align:center;font-size:20px}
+#reps{text-align:center;color:var(--muted)}
+#round{text-align:center;color:var(--accent);font-weight:600}
+#status{text-align:center;margin-top:8px;font-size:14px;color:#e5e7eb}
+.hidden{display:none}
+</style>
+</head>
+
+<body>
+
+<h1>30-Minute Calisthenics</h1>
+
+<div class="card">
+ <select id="weekSelect" onchange="setWeek(this.value)">
+  <option value="1">Week 1 – Learn Form</option>
+  <option value="2">Week 2 – +2 Reps</option>
+  <option value="3">Week 3 – Slow Tempo</option>
+  <option value="4">Week 4 – Shorter Rest</option>
+  <option value="5">Week 5 – Harder Variation</option>
+  <option value="6">Week 6 – DELOAD</option>
+ </select>
+ <div id="status"></div>
+</div>
+
+<div class="card">
+ <button class="day" onclick="loadDay(1)">Day 1 – Push</button>
+ <button class="day" onclick="loadDay(2)">Day 2 – Legs</button>
+ <button class="day" onclick="loadDay(3)">Day 3 – Pull</button>
+ <button class="day" onclick="loadDay(4)">Day 4 – Core</button>
+ <button class="day" onclick="loadDay(5)">Day 5 – Full Body</button>
+ <button class="secondary" onclick="showHistory()">Workout History</button>
+</div>
+
+<div class="card" id="workoutScreen">
+ <h2 id="dayTitle">Select a Day</h2>
+ <div id="round"></div>
+ <div id="exercise">—</div>
+ <div id="reps"></div>
+ <div id="timer">00:00</div>
+ <button class="start" onclick="startWorkout()">Start</button>
+ <button class="stop" onclick="stopWorkout()">Stop</button>
+</div>
+
+<div class="card hidden" id="historyScreen">
+ <h2>Workout History</h2>
+ <div id="historyList"></div>
+ <button class="secondary" onclick="hideHistory()">Back</button>
+</div>
+
+<script>
+if("serviceWorker" in navigator)navigator.serviceWorker.register("sw.js");
+
+const beep=new Audio("data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=");
+
+let seq=[],i=0,interval;
+let week=+localStorage.week||1;
+let streak=+localStorage.streak||0;
+let history=JSON.parse(localStorage.history||"[]");
+
+document.getElementById("weekSelect").value=week;
+updateStatus();
+
+function updateStatus(){
+ document.getElementById("status").innerText=`Week ${week} | Streak ${streak}`;
+}
+
+function setWeek(w){
+ week=+w;localStorage.week=week;updateStatus();
+}
+
+function speak(text,cb){
+ beep.play();
+ setTimeout(()=>{
+  const u=new SpeechSynthesisUtterance(text);
+  u.onend=()=>cb&&cb();
+  speechSynthesis.speak(u);
+ },200);
+}
+
+/* ===== EXACT PROGRAM DATA ===== */
+const days={
+1:["Push Day",[
+ ["Warm-up: Arm circles","30s",30],
+ ["Warm-up: Scap push-ups","10 reps",40],
+ ["Warm-up: Wall shoulder opener","30s",30],
+ ["Warm-up: Knee push-ups","10 reps",40],
+
+ ["Push-ups","10–15",40],["Rest","",30],
+ ["Pike push-ups","8–10",40],["Rest","",30],
+ ["Chair dips","10–12",40],["Rest","",30],
+ ["Tempo push-ups","6–8",40],["Rest","",60],
+
+ ["Push-ups","",40],["Rest","",30],
+ ["Pike push-ups","",40],["Rest","",30],
+ ["Chair dips","",40],["Rest","",30],
+ ["Tempo push-ups","",40],["Rest","",60],
+
+ ["Push-ups","",40],["Rest","",30],
+ ["Pike push-ups","",40],["Rest","",30],
+ ["Chair dips","",40],["Rest","",30],
+ ["Tempo push-ups","",40],["Rest","",60],
+
+ ["EMOM: Push-ups","8 reps",60],
+ ["Plank","hold",60],
+ ["EMOM: Push-ups","8 reps",60],
+ ["Plank","hold",60]
+]],
+2:["Leg Day",[
+ ["Warm-up: Squats","15",40],
+ ["Warm-up: Hip circles","30s",30],
+ ["Warm-up: Reverse lunges","6/leg",40],
+
+ ["Squats","20",45],["Rest","",30],
+ ["Reverse lunges","10/leg",45],["Rest","",30],
+ ["Chair step-ups","10/leg",45],["Rest","",30],
+ ["Wall sit","45s",45],["Rest","",60],
+
+ ["Squats","",45],["Rest","",30],
+ ["Reverse lunges","",45],["Rest","",30],
+ ["Chair step-ups","",45],["Rest","",30],
+ ["Wall sit","",45],["Rest","",60],
+
+ ["Squats","",45],["Rest","",30],
+ ["Reverse lunges","",45],["Rest","",30],
+ ["Chair step-ups","",45],["Rest","",30],
+ ["Wall sit","",45],["Rest","",60],
+
+ ["Jump squats","10",20],
+ ["Rest","",20]
+]],
+3:["Pull Day",[
+ ["Warm-up: Shoulder rolls","30s",30],
+ ["Warm-up: Wall slides","10",40],
+ ["Warm-up: Door rows","8",40],
+
+ ["Door rows","10–15",40],["Rest","",30],
+ ["Table rows","6–10",40],["Rest","",30],
+ ["Towel curl hold","30s",30],["Rest","",30],
+ ["Reverse snow angels","15",40],["Rest","",60],
+
+ ["Door rows","",40],["Rest","",30],
+ ["Table rows","",40],["Rest","",30],
+ ["Towel curl hold","",30],["Rest","",30],
+ ["Reverse snow angels","",40],["Rest","",60],
+
+ ["Row hold","30s",30],["Rest","",30],
+ ["Row hold","30s",30],["Rest","",30],
+ ["Row hold","30s",30],["Rest","",30],
+ ["Row hold","30s",30]
+]],
+4:["Core + Conditioning",[
+ ["Warm-up: Dead bugs","10",40],
+ ["Warm-up: Torso rotations","30s",30],
+
+ ["Dead bugs","10/side",45],["Rest","",30],
+ ["Plank","45s",45],["Rest","",30],
+ ["Mountain climbers","40s",40],["Rest","",30],
+ ["Leg raises","12–15",40],["Rest","",60],
+
+ ["Dead bugs","",45],["Rest","",30],
+ ["Plank","",45],["Rest","",30],
+ ["Mountain climbers","",40],["Rest","",30],
+ ["Leg raises","",40],["Rest","",60],
+
+ ["AMRAP: Mountain climbers","20",40],
+ ["Sit-throughs","10",40]
+]],
+5:["Full Body",[
+ ["Warm-up: Squats","15",40],
+ ["Warm-up: Push-ups","8",40],
+ ["Warm-up: Arm swings","30s",30],
+
+ ["Squat → push-up","10",45],["Rest","",30],
+ ["Bulgarian split squat","8/leg",45],["Rest","",30],
+ ["Push-ups","near failure",40],["Rest","",30],
+ ["Door rows","12",40],["Rest","",60],
+
+ ["Squat → push-up","",45],["Rest","",30],
+ ["Bulgarian split squat","",45],["Rest","",30],
+ ["Push-ups","",40],["Rest","",30],
+ ["Door rows","",40],["Rest","",60],
+
+ ["Hollow hold","20s",20],
+ ["Rest","",10]
+]]
+};
+
+/* ===== UI ===== */
+function loadDay(d){
+ document.getElementById("dayTitle").innerText=days[d][0];
+ seq=days[d][1];i=0;
+}
+
+/* ===== HISTORY ===== */
+function logWorkout(name){
+ history.push({date:new Date().toLocaleDateString(),week,workout:name});
+ localStorage.history=JSON.stringify(history);
+}
+function showHistory(){
+ document.getElementById("workoutScreen").classList.add("hidden");
+ document.getElementById("historyScreen").classList.remove("hidden");
+ document.getElementById("historyList").innerHTML=
+  history.map(h=>`<div>${h.date} — ${h.workout} (Week ${h.week})</div>`).join("");
+}
+function hideHistory(){
+ document.getElementById("historyScreen").classList.add("hidden");
+ document.getElementById("workoutScreen").classList.remove("hidden");
+}
+
+/* ===== PROGRESSION ===== */
+function adjDur(d){
+ if(week===4 && d>30)return d-10;
+ if(week===6)return Math.floor(d*.7);
+ return d;
+}
+function adjReps(r){
+ if(!r||week!==2)return r;
+ return r.replace(/\d+/g,n=>+n+2);
+}
+
+/* ===== FLOW ===== */
+function startWorkout(){
+ if(!seq.length)return;
+ speak("Starting workout",runInterval);
+}
+function runInterval(){
+ if(i>=seq.length){
+  speak("Workout complete");
+  streak++;localStorage.streak=streak;
+  if(streak>=5){week=6;localStorage.week=6;}
+  logWorkout(document.getElementById("dayTitle").innerText);
+  updateStatus();
+  return;
+ }
+ let [n,r,d]=seq[i];
+ document.getElementById("exercise").innerText=n;
+ document.getElementById("reps").innerText=adjReps(r||"");
+ document.getElementById("round").innerText=
+  n.includes("Warm")?"Warm-up":
+  n.includes("EMOM")||n.includes("AMRAP")?"Finisher":"Work";
+ speak(n==="Rest"?"Rest":"Three, two, one, go",()=>startTimer(adjDur(d)));
+}
+function startTimer(t){
+ document.getElementById("timer").innerText=`0:${t<10?"0":""}${t}`;
+ interval=setInterval(()=>{
+  t--;document.getElementById("timer").innerText=`0:${t<10?"0":""}${t}`;
+  if(t<=0){clearInterval(interval);i++;setTimeout(runInterval,400);}
+ },1000);
+}
+function stopWorkout(){
+ clearInterval(interval);
+ speechSynthesis.cancel();
+}
+</script>
+
+</body>
+</html>
