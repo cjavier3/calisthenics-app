@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>30-Minute Calisthenics</title>
+
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#020617">
+
+<style>
+:root {
+  --bg:#020617;
+  --card:rgba(255,255,255,0.07);
+  --accent:#3b82f6;
+  --success:#22c55e;
+  --danger:#ef4444;
+  --text:#ffffff;
+  --muted:#94a3b8;
+}
+
+body {
+  margin:0;
+  padding:20px;
+  font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display",Inter,system-ui,sans-serif;
+  background:radial-gradient(circle at top,#020617,#01040f);
+  color:var(--text);
+}
+
+h1,h2 { text-align:center; font-weight:600; }
+
+button {
+  width:100%;
+  padding:14px;
+  margin:6px 0;
+  border:none;
+  border-radius:16px;
+  font-size:16px;
+  font-weight:500;
+  color:#fff;
+}
+
+.day { background:linear-gradient(135deg,#1e3a8a,#2563eb); }
+.start { background:linear-gradient(135deg,#16a34a,#22c55e); }
+.stop { background:linear-gradient(135deg,#dc2626,#ef4444); }
+
+.card {
+  background:var(--card);
+  backdrop-filter:blur(16px);
+  border-radius:22px;
+  padding:18px;
+  margin-top:14px;
+  box-shadow:0 10px 30px rgba(0,0,0,.45);
+}
+
+#timer { font-size:52px; text-align:center; margin:10px 0; }
+#exercise { font-size:20px; text-align:center; }
+#reps { text-align:center; color:var(--muted); }
+#round { text-align:center; color:var(--accent); font-weight:600; }
+#form { text-align:center; margin-top:8px; font-size:14px; color:#e5e7eb; }
+</style>
+</head>
+
+<body>
+
+<h1>30-Minute Calisthenics</h1>
+
+<div class="card">
+  <button class="day" onclick="loadDay(1)">Day 1 – Push</button>
+  <button class="day" onclick="loadDay(2)">Day 2 – Legs</button>
+  <button class="day" onclick="loadDay(3)">Day 3 – Pull</button>
+  <button class="day" onclick="loadDay(4)">Day 4 – Core</button>
+  <button class="day" onclick="loadDay(5)">Day 5 – Full Body</button>
+</div>
+
+<div class="card">
+  <h2 id="dayTitle">Select a Day</h2>
+  <div id="round"></div>
+  <div id="exercise">—</div>
+  <div id="reps"></div>
+  <div id="form"></div>
+  <div id="timer">00:00</div>
+  <button class="start" onclick="startWorkout()">Start</button>
+  <button class="stop" onclick="stopWorkout()">Stop</button>
+</div>
+
+<script>
+if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js");
+
+const beep = new Audio("data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=");
+
+let sequence=[], index=0, interval, formIndex=0;
+
+/* ===== FORM CUES ROTATE EACH SET ===== */
+const formCues = [
+  "Brace your core",
+  "Control the negative",
+  "Breathe steadily",
+  "Keep shoulders packed",
+  "Move with intent",
+  "Quality reps only"
+];
+
+/* ===== VOICE ===== */
+function speak(text, cb){
+  beep.play();
+  setTimeout(()=>{
+    const msg=new SpeechSynthesisUtterance(text);
+    msg.onend=()=>cb&&cb();
+    speechSynthesis.speak(msg);
+  },200);
+}
+
+/* ===== WARMUP + FINISHER ===== */
+const warmup=[
+  ["Warm-up: Arm Circles","30 sec",30],
+  ["Warm-up: Scap Push-ups","10 reps",40],
+  ["Warm-up: Squats","15 reps",40],
+  ["Rest","",30]
+];
+
+const finisher=[
+  ["Finisher: Hollow Hold","20s hold",20],
+  ["Rest","",10],
+  ["Finisher: Mountain Climbers","30 sec",30]
+];
+
+/* ===== 5 DAY PROGRAM ===== */
+const days={
+1:["Push Day",[
+  ["Push-ups","10–15 reps",40],
+  ["Rest","",30],
+  ["Pike Push-ups","8–10 reps",40],
+  ["Rest","",30],
+  ["Chair Dips","10–12 reps",40],
+  ["Rest","",30],
+  ["Tempo Push-ups","6–8 reps",40],
+  ["Rest","",60]
+]],
+2:["Leg Day",[
+  ["Squats","20 reps",45],
+  ["Rest","",30],
+  ["Reverse Lunges","10/leg",45],
+  ["Rest","",30],
+  ["Step-ups","10/leg",45],
+  ["Rest","",30],
+  ["Wall Sit","45 sec",45],
+  ["Rest","",60]
+]],
+3:["Pull Day",[
+  ["Door Rows","10–15 reps",45],
+  ["Rest","",30],
+  ["Table Rows","6–10 reps",45],
+  ["Rest","",30],
+  ["Towel Curl Hold","30 sec",30],
+  ["Rest","",30],
+  ["Reverse Snow Angels","12–15 reps",40],
+  ["Rest","",60]
+]],
+4:["Core Day",[
+  ["Dead Bugs","10/side",40],
+  ["Rest","",30],
+  ["Plank","45 sec",45],
+  ["Rest","",30],
+  ["Mountain Climbers","40 sec",40],
+  ["Rest","",30],
+  ["Leg Raises","12–15 reps",40],
+  ["Rest","",60]
+]],
+5:["Full Body",[
+  ["Squat to Push-up","10 reps",45],
+  ["Rest","",30],
+  ["Bulgarian Split Squat","8/leg",45],
+  ["Rest","",30],
+  ["Push-ups","Near failure",40],
+  ["Rest","",30],
+  ["Door Rows","10–12 reps",40],
+  ["Rest","",60]
+]]
+};
+
+/* ===== LOAD DAY ===== */
+function loadDay(d){
+  document.getElementById("dayTitle").innerText=days[d][0];
+  sequence=[...warmup,...days[d][1],...finisher];
+  index=0; formIndex=0;
+}
+
+/* ===== START / STOP ===== */
+function startWorkout(){
+  if(!sequence.length) return;
+  speak("Starting warm-up.",runInterval);
+}
+function stopWorkout(){
+  clearInterval(interval);
+  speechSynthesis.cancel();
+}
+
+/* ===== INTERVAL FLOW ===== */
+function runInterval(){
+  if(index>=sequence.length){
+    speak("Workout complete. Excellent work.");
+    return;
+  }
+  let [name,reps,dur]=sequence[index];
+  document.getElementById("exercise").innerText=name;
+  document.getElementById("reps").innerText=reps;
+  document.getElementById("round").innerText=
+    name.includes("Warm")?"Warm-up":
+    name.includes("Finisher")?"Finisher":"Work";
+
+  if(!name.includes("Rest")){
+    document.getElementById("form").innerText=formCues[formIndex++%formCues.length];
+  } else document.getElementById("form").innerText="";
+
+  speak(name==="Rest"?"Rest":"Three, two, one, go",()=>startTimer(dur));
+}
+
+/* ===== TIMER ===== */
+function startTimer(t){
+  updateTimer(t);
+  interval=setInterval(()=>{
+    t--; updateTimer(t);
+    if(t===10) speak("Ten seconds");
+    if(t<=0){
+      clearInterval(interval);
+      index++;
+      setTimeout(runInterval,400);
+    }
+  },1000);
+}
+
+function updateTimer(t){
+  let m=Math.floor(t/60), s=t%60;
+  document.getElementById("timer").innerText=`${m}:${s<10?"0":""}${s}`;
+}
+</script>
+
+</body>
+</html>
